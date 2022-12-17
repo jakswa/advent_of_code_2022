@@ -1,5 +1,5 @@
 use advent_of_code_2022::input;
-use std::collections::HashSet;
+use std::collections::VecDeque;
 
 fn main() {
     let inp = input("12");
@@ -7,76 +7,80 @@ fn main() {
     //println!("part2: {}", run2(&inp));
 }
 
-fn run(s: &str) -> usize {
-    let grid = build_grid(s);
+fn run(s: &str) -> i32 {
+    let mut grid = build_grid(s);
     let x = grid
         .iter()
         .enumerate()
-        .find(|(_ind, uvec)| uvec.contains(&('S' as u8)))
+        .find(|(_ind, uvec)| uvec.contains(&('S' as u8, i32::MAX)))
         .unwrap()
         .0;
     let y = grid[x]
         .iter()
         .enumerate()
-        .find(|i| *i.1 == 'S' as u8)
+        .find(|i| i.1 .0 == 'S' as u8)
         .unwrap()
         .0;
-    let mut hist = HashSet::new();
-    hist.insert((x as i32, y as i32));
-    dig(
-        (x as i32, y as i32),
-        grid.len() * grid[0].len(),
-        &hist,
-        &grid,
-    )
+    let mut q = VecDeque::new();
+    q.push_back((x as i32, y as i32, 1));
+    grid[x][y].1 = 1;
+    while !q.is_empty() {
+        dig(&mut q, &mut grid);
+    }
+    grid.iter()
+        .flat_map(|line| line.iter().find(|(c, dist)| *c == E))
+        .next()
+        .unwrap()
+        .1
 }
 
-fn dig(pos: (i32, i32), bench: usize, hist: &HashSet<(i32, i32)>, grid: &Vec<Vec<u8>>) -> usize {
-    let mut best = bench;
-    let mut height = grid[pos.0 as usize][pos.1 as usize];
-    if height == 'S' as u8 {
-        height = 'a' as u8;
+const S: u8 = 'S' as u8;
+const E: u8 = 'E' as u8;
+
+fn dig(queue: &mut VecDeque<(i32, i32, i32)>, grid: &mut Vec<Vec<(u8, i32)>>) {
+    if queue.len() == 0 {
+        return;
     }
-    if height == 'E' as u8 {
-        return hist.len();
-    }
-    if hist.len() + 1 >= best {
-        return best;
-    }
-    [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    let curr = queue.pop_front().unwrap();
+    let hd = grid[curr.0 as usize][curr.1 as usize];
+    let hdh = match hd.0 {
+        S => 'a' as u8,
+        E => 'z' as u8,
+        _ => hd.0,
+    };
+    [(-1, 0), (0, -1), (1, 0), (0, 1)]
         .iter()
         .for_each(|(dx, dy)| {
-            let dpos = (pos.0 + dx, pos.1 + dy);
+            let dpos = (curr.0 + dx, curr.1 + dy);
             if dpos.0 < 0
-                || dpos.0 as usize >= grid.len()
+                || dpos.0 >= grid.len() as i32
                 || dpos.1 < 0
-                || dpos.1 as usize >= grid[0].len()
+                || dpos.1 >= grid[0].len() as i32
             {
                 return;
             }
-            if hist.contains(&dpos) {
+            let dh = grid[dpos.0 as usize][dpos.1 as usize];
+            let dhh = match dh.0 {
+                S => 'a' as u8,
+                E => 'z' as u8,
+                _ => dh.0,
+            };
+            if dhh - 1 > hdh || dh.1 != i32::MAX {
                 return;
             }
-            let mut dh = grid[dpos.0 as usize][dpos.1 as usize];
-            if dh == 'E' as u8 {
-                dh = 'z' as u8;
-            }
-            if dh == height || dh - 1 == height {
-                let mut dhist = hist.clone();
-                dhist.insert(dpos);
-                let res = dig(dpos, best, &dhist, grid);
-                if res < best {
-                    best = res;
-                }
-            }
+            grid[dpos.0 as usize][dpos.1 as usize].1 = hd.1 + 1;
+            queue.push_back((dpos.0, dpos.1, hd.1 + 1));
         });
-    best
 }
 
-fn build_grid(s: &str) -> Vec<Vec<u8>> {
+fn build_grid(s: &str) -> Vec<Vec<(u8, i32)>> {
     s.lines()
-        .map(|l| l.chars().map(|c| c as u8).collect::<Vec<u8>>())
-        .collect::<Vec<Vec<u8>>>()
+        .map(|l| {
+            l.chars()
+                .map(|c| (c as u8, i32::MAX))
+                .collect::<Vec<(u8, i32)>>()
+        })
+        .collect::<Vec<Vec<(u8, i32)>>>()
 }
 
 #[cfg(test)]
